@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:math';
 import 'dart:ui' as ui;
 
@@ -160,14 +159,18 @@ class _ValentineHomeState extends State<ValentineHome>
         backgroundColor: scheme.primaryContainer,
       ),
       body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
+        // ✅ Gradients requirement: soft pink-to-red RADIAL background
+        decoration: const BoxDecoration(
+          gradient: RadialGradient(
+            center: Alignment(0, -0.4),
+            radius: 1.2,
             colors: [
-              scheme.primaryContainer.withOpacity(0.55),
-              Colors.white,
+              Color(0xFFFFF1F6), // very light pink
+              Color(0xFFFFC1D6), // light pink
+              Color(0xFFFF8FB1), // deeper pink
+              Color(0xFFF06292), // pink-red
             ],
+            stops: [0.0, 0.45, 0.75, 1.0],
           ),
         ),
         child: SafeArea(
@@ -180,6 +183,7 @@ class _ValentineHomeState extends State<ValentineHome>
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Card(
                   elevation: 0,
+                  color: Colors.white.withOpacity(0.72),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(16),
                     side: BorderSide(color: Colors.black.withOpacity(0.08)),
@@ -320,9 +324,9 @@ class _ValentineHomeState extends State<ValentineHome>
 
               Text(
                 selectedEmoji == 'Party Heart'
-                    ? 'Festive: colorful confetti shapes + arrow + hat'
-                    : 'Sweet: shine + heart icon',
-                style: TextStyle(color: Colors.black.withOpacity(0.65)),
+                    ? 'Gradients: radial background + heart fill gradient'
+                    : 'Gradients: radial background + heart fill gradient',
+                style: TextStyle(color: Colors.black.withOpacity(0.70)),
               ),
 
               const SizedBox(height: 12),
@@ -331,6 +335,7 @@ class _ValentineHomeState extends State<ValentineHome>
                 child: Center(
                   child: Card(
                     elevation: 0,
+                    color: Colors.white.withOpacity(0.72),
                     shape: RoundedRectangleBorder(
                       borderRadius: BorderRadius.circular(24),
                       side: BorderSide(color: Colors.black.withOpacity(0.08)),
@@ -343,6 +348,7 @@ class _ValentineHomeState extends State<ValentineHome>
                         child: _assetsReady
                             ? Stack(
                                 children: [
+                                  // Heart canvas (pulsing)
                                   AnimatedBuilder(
                                     animation: _pulseController,
                                     builder: (context, child) {
@@ -371,6 +377,7 @@ class _ValentineHomeState extends State<ValentineHome>
                                     ),
                                   ),
 
+                                  // Balloons overlay
                                   if (balloonsActive)
                                     Positioned.fill(
                                       child: IgnorePointer(
@@ -418,8 +425,6 @@ class HeartEmojiPainter extends CustomPainter {
   final ui.Image arrow;
   final ui.Image heartIcon;
 
-  static final Random _r = Random(7);
-
   @override
   void paint(Canvas canvas, Size size) {
     // Smaller emoji overall
@@ -449,19 +454,36 @@ class HeartEmojiPainter extends CustomPainter {
 
   void _drawGlow(Canvas canvas, Offset center) {
     final glowPaint = Paint()
-      ..color = const Color(0xFFE91E63).withOpacity(0.12)
+      ..color = const Color(0xFFE91E63).withOpacity(0.10)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 22);
-    canvas.drawCircle(center, 110, glowPaint);
+    canvas.drawCircle(center, 112, glowPaint);
+  }
+
+  // ✅ Heart fill gradient (linear)
+  Paint _heartGradientPaint(Rect bounds, {required bool party}) {
+    final colors = party
+        ? const [Color(0xFFFFB3C7), Color(0xFFF06292), Color(0xFFD81B60)]
+        : const [Color(0xFFFF5A8A), Color(0xFFE91E63), Color(0xFFC2185B)];
+
+    return Paint()
+      ..style = PaintingStyle.fill
+      ..shader = ui.Gradient.linear(
+        Offset(bounds.left, bounds.top),
+        Offset(bounds.right, bounds.bottom),
+        colors,
+      );
   }
 
   void _drawSweet(Canvas canvas, Offset center) {
-    final heartPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = const Color(0xFFE91E63);
+    final heartPath = _buildHeart(center);
+    final bounds = heartPath.getBounds();
 
-    canvas.drawPath(_buildHeart(center), heartPaint);
+    // ✅ Gradient fill instead of solid color
+    final heartPaint = _heartGradientPaint(bounds, party: false);
+    canvas.drawPath(heartPath, heartPaint);
 
-    final shinePaint = Paint()..color = Colors.white.withOpacity(0.20);
+    // Shine
+    final shinePaint = Paint()..color = Colors.white.withOpacity(0.18);
     canvas.drawOval(
       Rect.fromCenter(
         center: Offset(center.dx - 26, center.dy - 36),
@@ -473,6 +495,7 @@ class HeartEmojiPainter extends CustomPainter {
 
     _drawFace(canvas, center, cheeks: true);
 
+    // Heart icon stamp
     _drawImageContained(
       canvas,
       heartIcon,
@@ -486,11 +509,12 @@ class HeartEmojiPainter extends CustomPainter {
   }
 
   void _drawParty(Canvas canvas, Offset center) {
-    final heartPaint = Paint()
-      ..style = PaintingStyle.fill
-      ..color = const Color(0xFFF48FB1);
+    final heartPath = _buildHeart(center);
+    final bounds = heartPath.getBounds();
 
-    canvas.drawPath(_buildHeart(center), heartPaint);
+    // ✅ Gradient fill for party heart too
+    final heartPaint = _heartGradientPaint(bounds, party: true);
+    canvas.drawPath(heartPath, heartPaint);
 
     _drawFace(canvas, center, cheeks: false);
     _drawPartyHat(canvas, center);
@@ -507,10 +531,10 @@ class HeartEmojiPainter extends CustomPainter {
       opacity: 0.95,
     );
 
-    // ✅ FESTIVE DETAILS: draw colorful shapes (triangles + circles + streamers)
+    // Festive details shapes
     _drawFestiveConfetti(canvas, center);
 
-    // optional accent: a few confetti PNGs way above
+    // optional accent: a few confetti PNGs
     for (int i = 0; i < 4; i++) {
       final dx = (i * 60) - 90;
       final dy = -195 + (i % 2) * 18;
@@ -520,7 +544,7 @@ class HeartEmojiPainter extends CustomPainter {
         canvas,
         confetti,
         Rect.fromCenter(center: p, width: 34, height: 34),
-        opacity: 0.86,
+        opacity: 0.82,
       );
     }
   }
@@ -535,7 +559,6 @@ class HeartEmojiPainter extends CustomPainter {
       const Color(0xFFFF80AB),
     ];
 
-    // fixed positions so screenshots look consistent (not random each repaint)
     final points = <Offset>[
       Offset(center.dx - 95, center.dy - 175),
       Offset(center.dx - 55, center.dy - 185),
@@ -568,7 +591,7 @@ class HeartEmojiPainter extends CustomPainter {
         final circPaint = Paint()..color = c.withOpacity(0.95);
         canvas.drawCircle(p, 5.5, circPaint);
       } else {
-        // Streamer (curved line)
+        // Streamer
         final linePaint = Paint()
           ..color = c.withOpacity(0.90)
           ..strokeWidth = 3.2
