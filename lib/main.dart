@@ -1,4 +1,8 @@
+import 'dart:async';
+import 'dart:ui' as ui;
+
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 void main() => runApp(const ValentinesApp());
 
@@ -34,10 +38,14 @@ class _ValentineHomeState extends State<ValentineHome>
 
   // Feature 2: pulse control
   bool pulseEnabled = true;
-  double pulseIntensity = 0.08; // scale delta: 0.00 - 0.20
+  double pulseIntensity = 0.08; // 0.00 - 0.20
   double pulseSpeed = 1.0; // 0.5x - 2.5x
-
   late final AnimationController _controller;
+
+  // Feature 3: dynamic drawing (assets inside CustomPainter)
+  ui.Image? confettiImg;
+  ui.Image? arrowImg;
+  ui.Image? heartIconImg;
 
   @override
   void initState() {
@@ -47,6 +55,28 @@ class _ValentineHomeState extends State<ValentineHome>
       vsync: this,
       duration: const Duration(milliseconds: 900),
     )..repeat(reverse: true);
+
+    _loadAssets();
+  }
+
+  Future<void> _loadAssets() async {
+    final c = await _loadUiImage('assets/images/confetti.png');
+    final a = await _loadUiImage('assets/images/cupidsarrow.png');
+    final h = await _loadUiImage('assets/images/hearticon.png');
+
+    if (!mounted) return;
+    setState(() {
+      confettiImg = c;
+      arrowImg = a;
+      heartIconImg = h;
+    });
+  }
+
+  Future<ui.Image> _loadUiImage(String assetPath) async {
+    final data = await rootBundle.load(assetPath);
+    final codec = await ui.instantiateImageCodec(data.buffer.asUint8List());
+    final frame = await codec.getNextFrame();
+    return frame.image;
   }
 
   @override
@@ -60,11 +90,7 @@ class _ValentineHomeState extends State<ValentineHome>
       _controller.stop();
       return;
     }
-
-    // Base 900ms scaled by speed.
-    // Higher speed = shorter duration = faster pulsing.
     final ms = (900 / pulseSpeed).clamp(250, 2000).round();
-
     _controller.duration = Duration(milliseconds: ms);
 
     if (!_controller.isAnimating) {
@@ -72,11 +98,12 @@ class _ValentineHomeState extends State<ValentineHome>
     }
   }
 
+  bool get _assetsReady =>
+      confettiImg != null && arrowImg != null && heartIconImg != null;
+
   @override
   Widget build(BuildContext context) {
     final scheme = Theme.of(context).colorScheme;
-
-    // keep controller behavior in sync with UI settings
     _applyPulsePlayback();
 
     return Scaffold(
@@ -101,7 +128,7 @@ class _ValentineHomeState extends State<ValentineHome>
             children: [
               const SizedBox(height: 16),
 
-              // Controls card (Feature 1 + Feature 2)
+              // Controls card
               Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 16),
                 child: Card(
@@ -114,7 +141,6 @@ class _ValentineHomeState extends State<ValentineHome>
                     padding: const EdgeInsets.all(14),
                     child: Column(
                       children: [
-                        // Feature 1: dropdown
                         Row(
                           children: [
                             Icon(
@@ -149,12 +175,9 @@ class _ValentineHomeState extends State<ValentineHome>
                             ),
                           ],
                         ),
-
                         const SizedBox(height: 10),
                         Divider(color: Colors.black.withOpacity(0.08)),
                         const SizedBox(height: 6),
-
-                        // Feature 2: pulse enable switch
                         Row(
                           children: [
                             Icon(Icons.favorite_border, color: scheme.primary),
@@ -167,23 +190,17 @@ class _ValentineHomeState extends State<ValentineHome>
                             ),
                             Switch(
                               value: pulseEnabled,
-                              onChanged: (v) {
-                                setState(() => pulseEnabled = v);
-                              },
+                              onChanged: (v) => setState(() => pulseEnabled = v),
                             ),
                           ],
                         ),
-
-                        // Pulse intensity slider
                         Opacity(
                           opacity: pulseEnabled ? 1.0 : 0.45,
                           child: Column(
                             children: [
                               Row(
                                 children: [
-                                  const Expanded(
-                                    child: Text('Intensity'),
-                                  ),
+                                  const Expanded(child: Text('Intensity')),
                                   Text(
                                     '${(pulseIntensity * 100).round()}%',
                                     style: TextStyle(
@@ -202,10 +219,7 @@ class _ValentineHomeState extends State<ValentineHome>
                                         setState(() => pulseIntensity = v)
                                     : null,
                               ),
-
                               const SizedBox(height: 4),
-
-                              // Pulse speed slider
                               Row(
                                 children: [
                                   const Expanded(child: Text('Speed')),
@@ -235,12 +249,12 @@ class _ValentineHomeState extends State<ValentineHome>
                 ),
               ),
 
-              const SizedBox(height: 14),
+              const SizedBox(height: 12),
 
               Text(
                 selectedEmoji == 'Party Heart'
-                    ? 'Party mode selected'
-                    : 'Sweet mode selected',
+                    ? 'Dynamic: hat + arrow + confetti'
+                    : 'Dynamic: shine + heart icon',
                 style: TextStyle(color: Colors.black.withOpacity(0.65)),
               ),
 
@@ -256,26 +270,35 @@ class _ValentineHomeState extends State<ValentineHome>
                     ),
                     child: Padding(
                       padding: const EdgeInsets.all(18),
+                      child: _assetsReady
+                          ? AnimatedBuilder(
+                              animation: _controller,
+                              builder: (context, child) {
+                                final t = _controller.value; // 0..1
+                                final base = 1.0;
+                                final amp = pulseEnabled ? pulseIntensity : 0.0;
+                                final scale = base - amp + (2 * amp * t);
 
-                      // Pulse effect wraps the CustomPaint
-                      child: AnimatedBuilder(
-                        animation: _controller,
-                        builder: (context, child) {
-                          final t = _controller.value; // 0..1
-                          final base = 1.0;
-                          final amp = pulseEnabled ? pulseIntensity : 0.0;
-                          final scale = base - amp + (2 * amp * t);
-
-                          return Transform.scale(
-                            scale: scale,
-                            child: child,
-                          );
-                        },
-                        child: CustomPaint(
-                          size: const Size(320, 320),
-                          painter: HeartEmojiPainter(type: selectedEmoji),
-                        ),
-                      ),
+                                return Transform.scale(
+                                  scale: scale,
+                                  child: child,
+                                );
+                              },
+                              child: CustomPaint(
+                                size: const Size(320, 320),
+                                painter: HeartEmojiPainter(
+                                  type: selectedEmoji,
+                                  confetti: confettiImg!,
+                                  arrow: arrowImg!,
+                                  heartIcon: heartIconImg!,
+                                ),
+                              ),
+                            )
+                          : const SizedBox(
+                              width: 320,
+                              height: 320,
+                              child: Center(child: CircularProgressIndicator()),
+                            ),
                     ),
                   ),
                 ),
@@ -291,20 +314,43 @@ class _ValentineHomeState extends State<ValentineHome>
 }
 
 class HeartEmojiPainter extends CustomPainter {
-  HeartEmojiPainter({required this.type});
+  HeartEmojiPainter({
+    required this.type,
+    required this.confetti,
+    required this.arrow,
+    required this.heartIcon,
+  });
+
   final String type;
+  final ui.Image confetti;
+  final ui.Image arrow;
+  final ui.Image heartIcon;
 
   @override
   void paint(Canvas canvas, Size size) {
-    final center = Offset(size.width / 2, size.height / 2);
+    // ✅ Make the entire emoji smaller
+    const scaleFactor = 0.88;
+    canvas.save();
+    canvas.scale(scaleFactor, scaleFactor);
 
-    _drawGlow(canvas, center);
+    final center = Offset(
+      (size.width / 2) / scaleFactor,
+      (size.height / 2) / scaleFactor,
+    );
+
+    // ✅ Move Party Heart down to reduce clustering
+    final Offset adjustedCenter =
+        type == 'Party Heart' ? Offset(center.dx, center.dy + 30) : center;
+
+    _drawGlow(canvas, adjustedCenter);
 
     if (type == 'Sweet Heart') {
-      _drawSweetHeart(canvas, center);
+      _drawSweet(canvas, adjustedCenter);
     } else {
-      _drawPartyHeart(canvas, center);
+      _drawParty(canvas, adjustedCenter);
     }
+
+    canvas.restore();
   }
 
   void _drawGlow(Canvas canvas, Offset center) {
@@ -315,41 +361,77 @@ class HeartEmojiPainter extends CustomPainter {
     canvas.drawCircle(center, 110, glowPaint);
   }
 
-  void _drawSweetHeart(Canvas canvas, Offset center) {
+  void _drawSweet(Canvas canvas, Offset center) {
     final heartPaint = Paint()
       ..style = PaintingStyle.fill
       ..color = const Color(0xFFE91E63);
 
-    final heartPath = _buildHeart(center);
-    canvas.drawPath(heartPath, heartPaint);
+    canvas.drawPath(_buildHeart(center), heartPaint);
 
     // Shine highlight
-    final shinePaint = Paint()
-      ..color = Colors.white.withOpacity(0.18)
-      ..style = PaintingStyle.fill;
+    final shinePaint = Paint()..color = Colors.white.withOpacity(0.20);
     canvas.drawOval(
       Rect.fromCenter(
-        center: Offset(center.dx - 28, center.dy - 35),
-        width: 80,
-        height: 50,
+        center: Offset(center.dx - 26, center.dy - 36),
+        width: 92,
+        height: 56,
       ),
       shinePaint,
     );
 
     _drawFace(canvas, center, cheeks: true);
+
+    // Heart icon stamp
+    _drawImageContained(
+      canvas,
+      heartIcon,
+      Rect.fromCenter(
+        center: Offset(center.dx + 70, center.dy + 62),
+        width: 66,
+        height: 66,
+      ),
+      opacity: 0.95,
+    );
   }
 
-  void _drawPartyHeart(Canvas canvas, Offset center) {
+  void _drawParty(Canvas canvas, Offset center) {
     final heartPaint = Paint()
       ..style = PaintingStyle.fill
       ..color = const Color(0xFFF48FB1);
 
-    final heartPath = _buildHeart(center);
-    canvas.drawPath(heartPath, heartPaint);
+    canvas.drawPath(_buildHeart(center), heartPaint);
 
     _drawFace(canvas, center, cheeks: false);
     _drawPartyHat(canvas, center);
-    _drawConfetti(canvas, center);
+
+    // Cupid arrow across heart
+    _drawImageContained(
+      canvas,
+      arrow,
+      Rect.fromCenter(
+        center: Offset(center.dx + 10, center.dy + 6),
+        width: 230,
+        height: 86,
+      ),
+      opacity: 0.95,
+    );
+
+    // ✅ Confetti ABOVE hat (less clustered)
+    for (int i = 0; i < 9; i++) {
+      final dx = (i * 25) % 210 - 105;
+      final dy = -180 + ((i * 19) % 70); // moved higher
+      final p = Offset(center.dx + dx.toDouble(), center.dy + dy.toDouble());
+
+      final w = 30 + (i % 3) * 6;
+      final h = 30 + ((i + 1) % 3) * 6;
+
+      _drawImageContained(
+        canvas,
+        confetti,
+        Rect.fromCenter(center: p, width: w.toDouble(), height: h.toDouble()),
+        opacity: 0.92,
+      );
+    }
   }
 
   Path _buildHeart(Offset center) {
@@ -375,17 +457,14 @@ class HeartEmojiPainter extends CustomPainter {
   }
 
   void _drawFace(Canvas canvas, Offset center, {required bool cheeks}) {
-    // Eyes
     final eyeWhite = Paint()..color = Colors.white;
     canvas.drawCircle(Offset(center.dx - 30, center.dy - 10), 10, eyeWhite);
     canvas.drawCircle(Offset(center.dx + 30, center.dy - 10), 10, eyeWhite);
 
-    // Pupils
     final pupil = Paint()..color = Colors.black.withOpacity(0.7);
     canvas.drawCircle(Offset(center.dx - 30, center.dy - 10), 4.5, pupil);
     canvas.drawCircle(Offset(center.dx + 30, center.dy - 10), 4.5, pupil);
 
-    // Smile
     final mouthPaint = Paint()
       ..color = Colors.black.withOpacity(0.7)
       ..style = PaintingStyle.stroke
@@ -400,7 +479,6 @@ class HeartEmojiPainter extends CustomPainter {
       mouthPaint,
     );
 
-    // Cheeks
     if (cheeks) {
       final cheekPaint = Paint()..color = Colors.pinkAccent.withOpacity(0.35);
       canvas.drawCircle(Offset(center.dx - 55, center.dy + 10), 10, cheekPaint);
@@ -409,7 +487,6 @@ class HeartEmojiPainter extends CustomPainter {
   }
 
   void _drawPartyHat(Canvas canvas, Offset center) {
-    // Hat
     final hatPaint = Paint()..color = const Color(0xFFFFD54F);
     final hatPath = Path()
       ..moveTo(center.dx, center.dy - 128)
@@ -418,7 +495,6 @@ class HeartEmojiPainter extends CustomPainter {
       ..close();
     canvas.drawPath(hatPath, hatPaint);
 
-    // Stripe
     final stripePaint = Paint()..color = const Color(0xFF7E57C2);
     canvas.drawRect(
       Rect.fromCenter(
@@ -429,40 +505,32 @@ class HeartEmojiPainter extends CustomPainter {
       stripePaint,
     );
 
-    // Pom-pom
     final pomPaint = Paint()..color = const Color(0xFF26C6DA);
     canvas.drawCircle(Offset(center.dx, center.dy - 132), 10, pomPaint);
   }
 
-  void _drawConfetti(Canvas canvas, Offset center) {
-    final colors = [
-      const Color(0xFF26C6DA),
-      const Color(0xFFFF7043),
-      const Color(0xFF7E57C2),
-      const Color(0xFF66BB6A),
-      const Color(0xFFFFD54F),
-    ];
+  void _drawImageContained(
+    Canvas canvas,
+    ui.Image image,
+    Rect dst, {
+    double opacity = 1.0,
+  }) {
+    final src = Rect.fromLTWH(
+      0,
+      0,
+      image.width.toDouble(),
+      image.height.toDouble(),
+    );
 
-    for (int i = 0; i < 22; i++) {
-      final dx = (i * 13) % 180 - 90;
-      final dy = -120 + ((i * 17) % 70);
-      final p = Offset(center.dx + dx.toDouble(), center.dy + dy.toDouble());
-
-      final paint = Paint()..color = colors[i % colors.length].withOpacity(0.95);
-
-      if (i % 2 == 0) {
-        canvas.drawCircle(p, 4.5, paint);
-      } else {
-        canvas.drawRect(
-          Rect.fromCenter(center: p, width: 9, height: 6),
-          paint,
-        );
-      }
-    }
+    final paint = Paint()..color = Colors.white.withOpacity(opacity);
+    canvas.drawImageRect(image, src, dst, paint);
   }
 
   @override
   bool shouldRepaint(covariant HeartEmojiPainter oldDelegate) {
-    return oldDelegate.type != type;
+    return oldDelegate.type != type ||
+        oldDelegate.confetti != confetti ||
+        oldDelegate.arrow != arrow ||
+        oldDelegate.heartIcon != heartIcon;
   }
 }
