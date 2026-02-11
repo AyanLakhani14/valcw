@@ -52,6 +52,10 @@ class _ValentineHomeState extends State<ValentineHome>
   late final AnimationController _balloonsController;
   late final List<_Balloon> _balloons;
 
+  // Feature 5: animated sparkles
+  late final AnimationController _sparklesController;
+  late final List<_Sparkle> _sparkles;
+
   @override
   void initState() {
     super.initState();
@@ -70,7 +74,13 @@ class _ValentineHomeState extends State<ValentineHome>
         }
       });
 
+    _sparklesController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1400),
+    )..repeat();
+
     _balloons = _makeBalloons(18);
+    _sparkles = _makeSparkles(18);
     _loadAssets();
   }
 
@@ -92,6 +102,33 @@ class _ValentineHomeState extends State<ValentineHome>
         drift: (r.nextDouble() * 2 - 1) * 18,
         wobble: 0.8 + r.nextDouble() * 1.6,
         phase: r.nextDouble() * pi * 2,
+        color: colors[i % colors.length],
+      );
+    });
+  }
+
+  List<_Sparkle> _makeSparkles(int count) {
+    final r = Random(9); // stable placement
+    final colors = <Color>[
+      const Color(0xFFFFFFFF),
+      const Color(0xFFFFF59D),
+      const Color(0xFFFFD54F),
+      const Color(0xFFB3E5FC),
+    ];
+
+    // positions are relative to the 320x320 canvas
+    return List.generate(count, (i) {
+      final ring = i % 2 == 0 ? 1 : 2;
+      final angle = r.nextDouble() * pi * 2;
+      final radius = ring == 1 ? (92 + r.nextDouble() * 18) : (120 + r.nextDouble() * 24);
+
+      return _Sparkle(
+        dx: cos(angle) * radius,
+        dy: sin(angle) * radius - 10, // a little higher
+        size: 6 + r.nextInt(8).toDouble(),
+        twinkleSpeed: 0.7 + r.nextDouble() * 1.6,
+        phase: r.nextDouble() * pi * 2,
+        drift: (r.nextDouble() * 2 - 1) * 6,
         color: colors[i % colors.length],
       );
     });
@@ -121,6 +158,7 @@ class _ValentineHomeState extends State<ValentineHome>
   void dispose() {
     _pulseController.dispose();
     _balloonsController.dispose();
+    _sparklesController.dispose();
     super.dispose();
   }
 
@@ -152,6 +190,8 @@ class _ValentineHomeState extends State<ValentineHome>
     final scheme = Theme.of(context).colorScheme;
     _applyPulsePlayback();
 
+    final showSparkles = selectedEmoji == 'Party Heart';
+
     return Scaffold(
       appBar: AppBar(
         title: const Text("Cupid's Canvas"),
@@ -159,16 +199,16 @@ class _ValentineHomeState extends State<ValentineHome>
         backgroundColor: scheme.primaryContainer,
       ),
       body: Container(
-        // ✅ Gradients requirement: soft pink-to-red RADIAL background
+        // Background gradient (from your previous feature)
         decoration: const BoxDecoration(
           gradient: RadialGradient(
             center: Alignment(0, -0.4),
             radius: 1.2,
             colors: [
-              Color(0xFFFFF1F6), // very light pink
-              Color(0xFFFFC1D6), // light pink
-              Color(0xFFFF8FB1), // deeper pink
-              Color(0xFFF06292), // pink-red
+              Color(0xFFFFF1F6),
+              Color(0xFFFFC1D6),
+              Color(0xFFFF8FB1),
+              Color(0xFFF06292),
             ],
             stops: [0.0, 0.45, 0.75, 1.0],
           ),
@@ -323,10 +363,10 @@ class _ValentineHomeState extends State<ValentineHome>
               const SizedBox(height: 12),
 
               Text(
-                selectedEmoji == 'Party Heart'
-                    ? 'Gradients: radial background + heart fill gradient'
-                    : 'Gradients: radial background + heart fill gradient',
-                style: TextStyle(color: Colors.black.withOpacity(0.70)),
+                showSparkles
+                    ? 'Animated sparkles enabled ✨'
+                    : 'Select Party Heart to see sparkles ✨',
+                style: TextStyle(color: Colors.black.withOpacity(0.72)),
               ),
 
               const SizedBox(height: 12),
@@ -376,6 +416,24 @@ class _ValentineHomeState extends State<ValentineHome>
                                       ),
                                     ),
                                   ),
+
+                                  // ✅ Animated sparkles overlay (Party only)
+                                  if (showSparkles)
+                                    Positioned.fill(
+                                      child: IgnorePointer(
+                                        child: AnimatedBuilder(
+                                          animation: _sparklesController,
+                                          builder: (context, _) {
+                                            return CustomPaint(
+                                              painter: SparklesPainter(
+                                                t: _sparklesController.value,
+                                                sparkles: _sparkles,
+                                              ),
+                                            );
+                                          },
+                                        ),
+                                      ),
+                                    ),
 
                                   // Balloons overlay
                                   if (balloonsActive)
@@ -459,7 +517,6 @@ class HeartEmojiPainter extends CustomPainter {
     canvas.drawCircle(center, 112, glowPaint);
   }
 
-  // ✅ Heart fill gradient (linear)
   Paint _heartGradientPaint(Rect bounds, {required bool party}) {
     final colors = party
         ? const [Color(0xFFFFB3C7), Color(0xFFF06292), Color(0xFFD81B60)]
@@ -478,11 +535,8 @@ class HeartEmojiPainter extends CustomPainter {
     final heartPath = _buildHeart(center);
     final bounds = heartPath.getBounds();
 
-    // ✅ Gradient fill instead of solid color
-    final heartPaint = _heartGradientPaint(bounds, party: false);
-    canvas.drawPath(heartPath, heartPaint);
+    canvas.drawPath(heartPath, _heartGradientPaint(bounds, party: false));
 
-    // Shine
     final shinePaint = Paint()..color = Colors.white.withOpacity(0.18);
     canvas.drawOval(
       Rect.fromCenter(
@@ -495,7 +549,6 @@ class HeartEmojiPainter extends CustomPainter {
 
     _drawFace(canvas, center, cheeks: true);
 
-    // Heart icon stamp
     _drawImageContained(
       canvas,
       heartIcon,
@@ -512,14 +565,11 @@ class HeartEmojiPainter extends CustomPainter {
     final heartPath = _buildHeart(center);
     final bounds = heartPath.getBounds();
 
-    // ✅ Gradient fill for party heart too
-    final heartPaint = _heartGradientPaint(bounds, party: true);
-    canvas.drawPath(heartPath, heartPaint);
+    canvas.drawPath(heartPath, _heartGradientPaint(bounds, party: true));
 
     _drawFace(canvas, center, cheeks: false);
     _drawPartyHat(canvas, center);
 
-    // Cupid arrow
     _drawImageContained(
       canvas,
       arrow,
@@ -531,10 +581,8 @@ class HeartEmojiPainter extends CustomPainter {
       opacity: 0.95,
     );
 
-    // Festive details shapes
     _drawFestiveConfetti(canvas, center);
 
-    // optional accent: a few confetti PNGs
     for (int i = 0; i < 4; i++) {
       final dx = (i * 60) - 90;
       final dy = -195 + (i % 2) * 18;
@@ -578,7 +626,6 @@ class HeartEmojiPainter extends CustomPainter {
       final c = colors[i % colors.length];
 
       if (i % 3 == 0) {
-        // Triangle
         final triPaint = Paint()..color = c.withOpacity(0.95);
         final path = Path()
           ..moveTo(p.dx, p.dy)
@@ -587,11 +634,9 @@ class HeartEmojiPainter extends CustomPainter {
           ..close();
         canvas.drawPath(path, triPaint);
       } else if (i % 3 == 1) {
-        // Circle
         final circPaint = Paint()..color = c.withOpacity(0.95);
         canvas.drawCircle(p, 5.5, circPaint);
       } else {
-        // Streamer
         final linePaint = Paint()
           ..color = c.withOpacity(0.90)
           ..strokeWidth = 3.2
@@ -715,6 +760,60 @@ class HeartEmojiPainter extends CustomPainter {
   }
 }
 
+// ✅ Animated sparkles overlay painter
+class SparklesPainter extends CustomPainter {
+  SparklesPainter({required this.t, required this.sparkles});
+
+  final double t; // 0..1
+  final List<_Sparkle> sparkles;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+
+    for (final s in sparkles) {
+      // twinkle alpha: 0.25..1.0
+      final tw = (sin(t * 2 * pi * s.twinkleSpeed + s.phase) + 1) / 2;
+      final alpha = 0.25 + 0.75 * tw;
+
+      // slight drift so it feels alive
+      final driftX = sin(t * 2 * pi + s.phase) * s.drift;
+
+      final p = Offset(center.dx + s.dx + driftX, center.dy + s.dy);
+
+      _drawStar(canvas, p, s.size, s.color.withOpacity(alpha));
+    }
+  }
+
+  void _drawStar(Canvas canvas, Offset c, double r, Color color) {
+    final paint = Paint()..color = color;
+
+    // simple 4-point sparkle (diamond + cross)
+    final diamond = Path()
+      ..moveTo(c.dx, c.dy - r)
+      ..lineTo(c.dx + r * 0.65, c.dy)
+      ..lineTo(c.dx, c.dy + r)
+      ..lineTo(c.dx - r * 0.65, c.dy)
+      ..close();
+
+    canvas.drawPath(diamond, paint);
+
+    final stroke = Paint()
+      ..color = color.withOpacity(0.7)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = max(1.2, r * 0.18)
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawLine(Offset(c.dx - r, c.dy), Offset(c.dx + r, c.dy), stroke);
+    canvas.drawLine(Offset(c.dx, c.dy - r), Offset(c.dx, c.dy + r), stroke);
+  }
+
+  @override
+  bool shouldRepaint(covariant SparklesPainter oldDelegate) {
+    return oldDelegate.t != t || oldDelegate.sparkles != sparkles;
+  }
+}
+
 class BalloonPainter extends CustomPainter {
   BalloonPainter({required this.t, required this.balloons});
 
@@ -805,5 +904,25 @@ class _Balloon {
   final double drift;
   final double wobble;
   final double phase;
+  final Color color;
+}
+
+class _Sparkle {
+  _Sparkle({
+    required this.dx,
+    required this.dy,
+    required this.size,
+    required this.twinkleSpeed,
+    required this.phase,
+    required this.drift,
+    required this.color,
+  });
+
+  final double dx;
+  final double dy;
+  final double size;
+  final double twinkleSpeed;
+  final double phase;
+  final double drift;
   final Color color;
 }
