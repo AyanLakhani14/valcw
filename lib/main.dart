@@ -1,112 +1,109 @@
 import 'package:flutter/material.dart';
 
-void main() => runApp(const MyApp());
+void main() => runApp(const ValentineApp());
 
-class MyApp extends StatelessWidget {
-  const MyApp({super.key});
+class ValentineApp extends StatelessWidget {
+  const ValentineApp({super.key});
 
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
       debugShowCheckedModeBanner: false,
-      title: 'Asset Test',
-      theme: ThemeData(
-        colorScheme: ColorScheme.fromSeed(seedColor: Colors.pink),
-        useMaterial3: true,
-      ),
-      home: const AssetTestPage(),
+      theme: ThemeData(useMaterial3: true),
+      home: const ValentineHome(),
     );
   }
 }
 
-class AssetTestPage extends StatelessWidget {
-  const AssetTestPage({super.key});
+class ValentineHome extends StatefulWidget {
+  const ValentineHome({super.key});
+
+  @override
+  State<ValentineHome> createState() => _ValentineHomeState();
+}
+
+class _ValentineHomeState extends State<ValentineHome> {
+  final List<String> emojiOptions = ['Sweet Heart', 'Party Heart'];
+  String selectedEmoji = 'Sweet Heart';
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Assets Loaded ✅'),
-        backgroundColor: Theme.of(context).colorScheme.primaryContainer,
-      ),
-      body: Center(
-        child: SingleChildScrollView(
-          padding: const EdgeInsets.all(24),
-          child: Column(
-            mainAxisAlignment: MainAxisAlignment.center,
-            children: [
-              const Text(
-                'If you can see all 3 images, your assets + pubspec.yaml are correct.',
-                textAlign: TextAlign.center,
-              ),
-              const SizedBox(height: 24),
+      appBar: AppBar(title: const Text("Cupid's Canvas")),
+      body: Column(
+        children: [
+          const SizedBox(height: 16),
 
-              _assetCard(
-                label: 'confetti.png',
-                path: 'assets/images/confetti.png',
-                size: 220,
-              ),
-              const SizedBox(height: 18),
-
-              _assetCard(
-                label: 'cupidsarrow.png',
-                path: 'assets/images/cupidsarrow.png',
-                size: 220,
-              ),
-              const SizedBox(height: 18),
-
-              _assetCard(
-                label: 'hearticon.png',
-                path: 'assets/images/hearticon.png',
-                size: 220,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-
-  static Widget _assetCard({
-    required String label,
-    required String path,
-    double size = 200,
-  }) {
-    return Column(
-      children: [
-        Text(
-          label,
-          style: const TextStyle(fontWeight: FontWeight.w600),
-        ),
-        const SizedBox(height: 10),
-        Container(
-          padding: const EdgeInsets.all(14),
-          decoration: BoxDecoration(
-            color: Colors.black.withOpacity(0.05),
-            borderRadius: BorderRadius.circular(16),
-            border: Border.all(color: Colors.black12),
-          ),
-          child: Image.asset(
-            path,
-            width: size,
-            height: size,
-            fit: BoxFit.contain,
-            errorBuilder: (context, error, stackTrace) {
-              return SizedBox(
-                width: size,
-                height: size,
-                child: Center(
-                  child: Text(
-                    'FAILED:\n$path',
-                    textAlign: TextAlign.center,
-                    style: const TextStyle(color: Colors.red),
-                  ),
-                ),
-              );
+          // ✅ Core Feature 1: Emoji selection dropdown
+          DropdownButton<String>(
+            value: selectedEmoji,
+            items: emojiOptions
+                .map((e) => DropdownMenuItem(value: e, child: Text(e)))
+                .toList(),
+            onChanged: (value) {
+              if (value == null) return;
+              setState(() => selectedEmoji = value);
             },
           ),
-        ),
-      ],
+
+          const SizedBox(height: 16),
+
+          // (Optional) shows what’s selected for clarity
+          Text('Selected: $selectedEmoji'),
+
+          const SizedBox(height: 16),
+
+          Expanded(
+            child: Center(
+              child: CustomPaint(
+                size: const Size(300, 300),
+                painter: HeartEmojiPainter(type: selectedEmoji),
+              ),
+            ),
+          ),
+        ],
+      ),
     );
   }
+}
+
+// Minimal painter just to prove selection is wired correctly.
+// (Sweet Heart = solid pink heart, Party Heart = different pink heart + hat)
+class HeartEmojiPainter extends CustomPainter {
+  HeartEmojiPainter({required this.type});
+  final String type;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final center = Offset(size.width / 2, size.height / 2);
+    final paint = Paint()..style = PaintingStyle.fill;
+
+    // Heart base (same shape, different color to prove selection works)
+    final heartPath = Path()
+      ..moveTo(center.dx, center.dy + 60)
+      ..cubicTo(center.dx + 110, center.dy - 10, center.dx + 60,
+          center.dy - 120, center.dx, center.dy - 40)
+      ..cubicTo(center.dx - 60, center.dy - 120, center.dx - 110,
+          center.dy - 10, center.dx, center.dy + 60)
+      ..close();
+
+    paint.color =
+        type == 'Party Heart' ? const Color(0xFFF48FB1) : const Color(0xFFE91E63);
+    canvas.drawPath(heartPath, paint);
+
+    // Party hat (only for Party Heart)
+    if (type == 'Party Heart') {
+      final hatPaint = Paint()..color = const Color(0xFFFFD54F);
+      final hatPath = Path()
+        ..moveTo(center.dx, center.dy - 110)
+        ..lineTo(center.dx - 40, center.dy - 40)
+        ..lineTo(center.dx + 40, center.dy - 40)
+        ..close();
+      canvas.drawPath(hatPath, hatPaint);
+    }
+  }
+
+  @override
+  bool shouldRepaint(covariant HeartEmojiPainter oldDelegate) =>
+      oldDelegate.type != type;
 }
