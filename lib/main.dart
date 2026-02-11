@@ -76,7 +76,7 @@ class _ValentineHomeState extends State<ValentineHome>
   }
 
   List<_Balloon> _makeBalloons(int count) {
-    final r = Random(42); // stable randomness for grading/screenshots
+    final r = Random(42);
     final colors = <Color>[
       const Color(0xFFFF5252),
       const Color(0xFFFFC107),
@@ -88,9 +88,9 @@ class _ValentineHomeState extends State<ValentineHome>
 
     return List.generate(count, (i) {
       return _Balloon(
-        x: r.nextDouble(), // 0..1 across width
+        x: r.nextDouble(),
         size: 34 + r.nextInt(28).toDouble(),
-        drift: (r.nextDouble() * 2 - 1) * 18, // side drift px
+        drift: (r.nextDouble() * 2 - 1) * 18,
         wobble: 0.8 + r.nextDouble() * 1.6,
         phase: r.nextDouble() * pi * 2,
         color: colors[i % colors.length],
@@ -188,7 +188,6 @@ class _ValentineHomeState extends State<ValentineHome>
                     padding: const EdgeInsets.all(14),
                     child: Column(
                       children: [
-                        // Feature 1: dropdown
                         Row(
                           children: [
                             Icon(
@@ -228,7 +227,6 @@ class _ValentineHomeState extends State<ValentineHome>
                         Divider(color: Colors.black.withOpacity(0.08)),
                         const SizedBox(height: 6),
 
-                        // Feature 2: pulse switch
                         Row(
                           children: [
                             Icon(Icons.favorite_border, color: scheme.primary),
@@ -300,7 +298,6 @@ class _ValentineHomeState extends State<ValentineHome>
                         Divider(color: Colors.black.withOpacity(0.08)),
                         const SizedBox(height: 8),
 
-                        // Feature 4: Balloon Celebration button
                         SizedBox(
                           width: double.infinity,
                           child: ElevatedButton.icon(
@@ -323,8 +320,8 @@ class _ValentineHomeState extends State<ValentineHome>
 
               Text(
                 selectedEmoji == 'Party Heart'
-                    ? 'Dynamic: hat + arrow + confetti'
-                    : 'Dynamic: shine + heart icon',
+                    ? 'Festive: colorful confetti shapes + arrow + hat'
+                    : 'Sweet: shine + heart icon',
                 style: TextStyle(color: Colors.black.withOpacity(0.65)),
               ),
 
@@ -346,11 +343,10 @@ class _ValentineHomeState extends State<ValentineHome>
                         child: _assetsReady
                             ? Stack(
                                 children: [
-                                  // Heart canvas (pulsing)
                                   AnimatedBuilder(
                                     animation: _pulseController,
                                     builder: (context, child) {
-                                      final t = _pulseController.value; // 0..1
+                                      final t = _pulseController.value;
                                       final base = 1.0;
                                       final amp =
                                           pulseEnabled ? pulseIntensity : 0.0;
@@ -375,7 +371,6 @@ class _ValentineHomeState extends State<ValentineHome>
                                     ),
                                   ),
 
-                                  // Balloons overlay
                                   if (balloonsActive)
                                     Positioned.fill(
                                       child: IgnorePointer(
@@ -423,6 +418,8 @@ class HeartEmojiPainter extends CustomPainter {
   final ui.Image arrow;
   final ui.Image heartIcon;
 
+  static final Random _r = Random(7);
+
   @override
   void paint(Canvas canvas, Size size) {
     // Smaller emoji overall
@@ -435,7 +432,7 @@ class HeartEmojiPainter extends CustomPainter {
       (size.height / 2) / scaleFactor,
     );
 
-    // Party heart moved down so it’s not crowded
+    // Party heart moved down
     final Offset adjustedCenter =
         type == 'Party Heart' ? Offset(center.dx, center.dy + 30) : center;
 
@@ -454,7 +451,6 @@ class HeartEmojiPainter extends CustomPainter {
     final glowPaint = Paint()
       ..color = const Color(0xFFE91E63).withOpacity(0.12)
       ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 22);
-
     canvas.drawCircle(center, 110, glowPaint);
   }
 
@@ -499,6 +495,7 @@ class HeartEmojiPainter extends CustomPainter {
     _drawFace(canvas, center, cheeks: false);
     _drawPartyHat(canvas, center);
 
+    // Cupid arrow
     _drawImageContained(
       canvas,
       arrow,
@@ -510,21 +507,87 @@ class HeartEmojiPainter extends CustomPainter {
       opacity: 0.95,
     );
 
-    // Confetti kept higher to reduce clutter
-    for (int i = 0; i < 9; i++) {
-      final dx = (i * 25) % 210 - 105;
-      final dy = -180 + ((i * 19) % 70);
-      final p = Offset(center.dx + dx.toDouble(), center.dy + dy.toDouble());
+    // ✅ FESTIVE DETAILS: draw colorful shapes (triangles + circles + streamers)
+    _drawFestiveConfetti(canvas, center);
 
-      final w = 30 + (i % 3) * 6;
-      final h = 30 + ((i + 1) % 3) * 6;
+    // optional accent: a few confetti PNGs way above
+    for (int i = 0; i < 4; i++) {
+      final dx = (i * 60) - 90;
+      final dy = -195 + (i % 2) * 18;
+      final p = Offset(center.dx + dx.toDouble(), center.dy + dy.toDouble());
 
       _drawImageContained(
         canvas,
         confetti,
-        Rect.fromCenter(center: p, width: w.toDouble(), height: h.toDouble()),
-        opacity: 0.92,
+        Rect.fromCenter(center: p, width: 34, height: 34),
+        opacity: 0.86,
       );
+    }
+  }
+
+  void _drawFestiveConfetti(Canvas canvas, Offset center) {
+    final colors = <Color>[
+      const Color(0xFFFF5252),
+      const Color(0xFFFFC107),
+      const Color(0xFF4CAF50),
+      const Color(0xFF03A9F4),
+      const Color(0xFF7E57C2),
+      const Color(0xFFFF80AB),
+    ];
+
+    // fixed positions so screenshots look consistent (not random each repaint)
+    final points = <Offset>[
+      Offset(center.dx - 95, center.dy - 175),
+      Offset(center.dx - 55, center.dy - 185),
+      Offset(center.dx - 15, center.dy - 170),
+      Offset(center.dx + 25, center.dy - 190),
+      Offset(center.dx + 65, center.dy - 175),
+      Offset(center.dx + 95, center.dy - 188),
+      Offset(center.dx - 85, center.dy - 145),
+      Offset(center.dx - 35, center.dy - 150),
+      Offset(center.dx + 10, center.dy - 152),
+      Offset(center.dx + 55, center.dy - 145),
+      Offset(center.dx + 90, center.dy - 155),
+    ];
+
+    for (int i = 0; i < points.length; i++) {
+      final p = points[i];
+      final c = colors[i % colors.length];
+
+      if (i % 3 == 0) {
+        // Triangle
+        final triPaint = Paint()..color = c.withOpacity(0.95);
+        final path = Path()
+          ..moveTo(p.dx, p.dy)
+          ..lineTo(p.dx - 8, p.dy + 14)
+          ..lineTo(p.dx + 10, p.dy + 12)
+          ..close();
+        canvas.drawPath(path, triPaint);
+      } else if (i % 3 == 1) {
+        // Circle
+        final circPaint = Paint()..color = c.withOpacity(0.95);
+        canvas.drawCircle(p, 5.5, circPaint);
+      } else {
+        // Streamer (curved line)
+        final linePaint = Paint()
+          ..color = c.withOpacity(0.90)
+          ..strokeWidth = 3.2
+          ..style = PaintingStyle.stroke
+          ..strokeCap = StrokeCap.round;
+
+        final wave = Path()
+          ..moveTo(p.dx - 10, p.dy + 6)
+          ..cubicTo(
+            p.dx - 2,
+            p.dy - 4,
+            p.dx + 2,
+            p.dy + 18,
+            p.dx + 12,
+            p.dy + 6,
+          );
+
+        canvas.drawPath(wave, linePaint);
+      }
     }
   }
 
@@ -632,7 +695,7 @@ class HeartEmojiPainter extends CustomPainter {
 class BalloonPainter extends CustomPainter {
   BalloonPainter({required this.t, required this.balloons});
 
-  final double t; // 0..1
+  final double t;
   final List<_Balloon> balloons;
 
   @override
@@ -641,16 +704,12 @@ class BalloonPainter extends CustomPainter {
 
     for (final b in balloons) {
       final x = b.x * size.width;
-
-      // Start below bottom, float up past top
       final y = size.height + 60 - (t * travel);
 
-      // Wobble + drift
       final wobbleX = sin(t * 2 * pi * b.wobble + b.phase) * 10;
       final driftX = b.drift * t;
 
       final center = Offset(x + wobbleX + driftX, y + sin(b.phase) * 10);
-
       _drawBalloon(canvas, center, b.size, b.color);
     }
   }
@@ -658,7 +717,6 @@ class BalloonPainter extends CustomPainter {
   void _drawBalloon(Canvas canvas, Offset c, double r, Color color) {
     final balloonPaint = Paint()..color = color.withOpacity(0.95);
 
-    // Balloon body (oval)
     final rect = Rect.fromCenter(
       center: Offset(c.dx, c.dy),
       width: r * 1.25,
@@ -666,14 +724,16 @@ class BalloonPainter extends CustomPainter {
     );
     canvas.drawOval(rect, balloonPaint);
 
-    // Shine
     final shine = Paint()..color = Colors.white.withOpacity(0.22);
     canvas.drawOval(
-      Rect.fromCenter(center: Offset(c.dx - r * 0.18, c.dy - r * 0.25), width: r * 0.30, height: r * 0.55),
+      Rect.fromCenter(
+        center: Offset(c.dx - r * 0.18, c.dy - r * 0.25),
+        width: r * 0.30,
+        height: r * 0.55,
+      ),
       shine,
     );
 
-    // Knot
     final knot = Path()
       ..moveTo(c.dx, c.dy + r * 0.78)
       ..lineTo(c.dx - r * 0.10, c.dy + r * 0.95)
@@ -681,11 +741,11 @@ class BalloonPainter extends CustomPainter {
       ..close();
     canvas.drawPath(knot, balloonPaint);
 
-    // String
     final stringPaint = Paint()
       ..color = Colors.black.withOpacity(0.25)
       ..strokeWidth = 1.6
-      ..style = PaintingStyle.stroke;
+      ..style = PaintingStyle.stroke
+      ..strokeCap = StrokeCap.round;
 
     final stringPath = Path()
       ..moveTo(c.dx, c.dy + r * 0.95)
@@ -717,7 +777,7 @@ class _Balloon {
     required this.color,
   });
 
-  final double x; // 0..1
+  final double x;
   final double size;
   final double drift;
   final double wobble;
